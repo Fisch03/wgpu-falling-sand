@@ -1,9 +1,15 @@
+#![warn(missing_debug_implementations, rust_2018_idioms)]
+
 mod view_renderer;
+
 use crate::view_renderer::ViewRenderer;
 
 mod world_view;
 use crate::world_view::WorldView;
 
+mod move_pass;
+
+use move_pass::MovePass;
 use pollster::block_on;
 use winit::{
     event::{Event, WindowEvent},
@@ -60,12 +66,9 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window) {
     let swapchain_capabilities = surface.get_capabilities(&adapter);
     let swapchain_format = swapchain_capabilities.formats[0];
 
-    let mut world_view = WorldView::new(size, &device, &queue);
-    let mut view_renderer = ViewRenderer::new(
-        world_view.get_bind_group_layout(),
-        swapchain_format,
-        &device,
-    );
+    let mut world_view = WorldView::new(size, &device);
+    let mut move_pass = MovePass::new(&world_view, &device);
+    let mut view_renderer = ViewRenderer::new(&world_view, swapchain_format, &device);
 
     let mut config = surface
         .get_default_config(&adapter, size.width, size.height)
@@ -108,7 +111,15 @@ async fn run(event_loop: EventLoop<()>, window: winit::window::Window) {
                             .texture
                             .create_view(&wgpu::TextureViewDescriptor::default());
 
-                        view_renderer.render(&world_view, target, &device, &queue);
+                        let mut encoder =
+                            device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                                label: None,
+                            });
+
+                        move_pass.execute(&world_view, &mut encoder);
+                        view_renderer.render(&world_view, target, &mut encoder);
+
+                        queue.submit(Some(encoder.finish()));
 
                         frame.present();
                     }

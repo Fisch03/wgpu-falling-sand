@@ -8,7 +8,7 @@ pub struct ViewRenderer {
 
 impl ViewRenderer {
     pub fn new(
-        view_bind_group_layout: &wgpu::BindGroupLayout,
+        view: &WorldView,
         render_format: wgpu::TextureFormat,
         device: &wgpu::Device,
     ) -> Self {
@@ -19,7 +19,7 @@ impl ViewRenderer {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: None,
-            bind_group_layouts: &[view_bind_group_layout],
+            bind_group_layouts: &[view.get_render_bind_group_layout()],
             push_constant_ranges: &[],
         });
 
@@ -53,11 +53,8 @@ impl ViewRenderer {
         &mut self,
         view: &WorldView,
         target: wgpu::TextureView,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
     ) {
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         {
             let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
@@ -74,10 +71,8 @@ impl ViewRenderer {
                 occlusion_query_set: None,
             });
             rpass.set_pipeline(&self.render_pipeline);
-            rpass.set_bind_group(0, &view.bind_group, &[]);
+            rpass.set_bind_group(0, &view.render_bind_group, &[]);
             rpass.draw(0..3, 0..1);
         }
-
-        queue.submit(Some(encoder.finish()));
     }
 }
